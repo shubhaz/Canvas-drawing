@@ -184,7 +184,6 @@ export class AppComponent implements AfterViewInit {
   }
 
   redrawCanvas() {
-
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
     this.ctx.fillStyle = 'white';
     this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
