@@ -1,21 +1,19 @@
-
 <div>
-    <button (click)="setDrawingMode('rectangle')">Draw Rectangle</button>
-    <button (click)="setDrawingMode('text')">Draw Text</button>
-    <button (click)="setDrawingMode('freedraw')">Free Draw</button>
-    <button (click)="clearCanvas()">Clear Canvas</button>
-    <button (click)="saveDrawingAsJSON()">Save Drawing as JSON</button>
-  </div>
-  
-  <canvas #myCanvas
-          (mousedown)="onMouseDown($event)"
-          (mousemove)="onMouseMove($event)"
-          (mouseup)="onMouseUp($event)">
-  </canvas>
-  <div>
-    <textarea #jsonDataInput placeholder="Paste JSON data here"></textarea>
-    <button (click)="loadDrawingFromJSON(jsonDataInput.value)">Load Drawing from JSON</button>
-  </div>
-  
-  
+  <button (click)="setDrawingMode('rectangle')">Draw Rectangle</button>
+  <button (click)="setDrawingMode('text')">Draw Text</button>
+  <button (click)="setDrawingMode('freedraw')">Free Draw</button>
+  <button (click)="clearCanvas()">Clear Canvas</button>
+  <button (click)="toggleEraser()">Eraser</button> <!-- Button to toggle eraser mode -->
+  <button (click)="saveDrawingAsJSON()">Save Drawing as JSON</button>
+</div>
+<input type="file" (change)="loadImage($event)">
 
+<canvas #myCanvas
+        (mousedown)="onMouseDown($event)"
+        (mousemove)="onMouseMove($event)"
+        (mouseup)="onMouseUp($event)">
+</canvas>
+<div>
+  <textarea #jsonDataInput placeholder="Paste JSON data here"></textarea>
+  <button (click)="loadDrawingFromJSON(jsonDataInput.value)">Load Drawing from JSON</button>
+</div>

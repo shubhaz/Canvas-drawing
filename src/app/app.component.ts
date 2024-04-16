@@ -1,5 +1,4 @@
 import { Component, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
-
 interface ElementData {
   type: string;
   x: number;
@@ -29,8 +28,11 @@ export class AppComponent implements AfterViewInit {
   private currentElement: ElementData | null = null;
   private elements: ElementData[] = [];
   private strokeColor: string = '#000000'; // Default stroke color
-  private drawingMode: string = ''; // Current drawing mode ('rectangle', 'text', 'freedraw')
+  private drawingMode: string = 'rectangle'; // Current drawing mode ('rectangle', 'text', 'freedraw')
+  private imgLoaded: boolean = false; // Flag to track if image is loaded
   private img: HTMLImageElement = new Image(); // Create image element
+  private isErasing: boolean = false; // New property for eraser mode
+  private previousDrawingMode: string = '';
 
   ngAfterViewInit() {
     const canvas = this.canvas.nativeElement;
@@ -39,13 +41,44 @@ export class AppComponent implements AfterViewInit {
     canvas.height = 400;
     this.ctx.fillStyle = 'white';
     this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  toggleEraser() {
+    if (!this.isErasing) {
+      // Store the previous drawing mode before toggling to eraser mode
+      this.previousDrawingMode = this.drawingMode;
+      this.drawingMode = 'eraser'; // Set drawing mode to 'eraser'
+    } else {
+      this.drawingMode = this.previousDrawingMode; // Restore previous drawing mode
+    }
+    this.isErasing = !this.isErasing; // Toggle eraser mode
+  
+    // Reset currentElement to null when eraser is toggled off
+    if (!this.isErasing) {
+      this.currentElement = null;
+    }
+  }
+  
+  
+  
 
-      // Load the image onto the canvas
-      this.img.onload = () => {
-        this.ctx.drawImage(this.img, 0, 0);
-        this.drawElements(); // Draw elements on top of the image
+  loadImage(event: any) {
+    const fileInput = event.target as HTMLInputElement;
+    const files = fileInput.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event: any) => {
+        if (event.target && typeof event.target.result === 'string') {
+          this.img.src = event.target.result as string;
+          this.img.onload = () => {
+            this.ctx.drawImage(this.img, 0, 0);
+            this.imgLoaded = true;
+            this.drawElements(); // Draw elements on top of the image
+          };
+        }
       };
-      this.img.src = 'assets/Scan.jpg'; // Replace with the path to your image
+      reader.readAsDataURL(file);
+    }
   }
 
   onMouseDown(event: MouseEvent) {
@@ -100,29 +133,87 @@ export class AppComponent implements AfterViewInit {
   
   onMouseMove(event: MouseEvent) {
     if (!this.isDrawing || !this.currentElement) return;
+  
     const offsetX = event.offsetX !== undefined ? event.offsetX : event.layerX;
     const offsetY = event.offsetY !== undefined ? event.offsetY : event.layerY;
   
-    switch (this.drawingMode) {
-      case 'rectangle':
-        const width = offsetX - this.startX;
-        const height = offsetY - this.startY;
-        // Update the rectangle width and height
-        this.currentElement.width = width;
-        this.currentElement.height = height;
-        this.redrawCanvas();
-        this.drawRectangle(this.currentElement);
-        break;
-      case 'text':
-        // No preview text for mouse move
-        break;
-      case 'freedraw':
-        this.currentElement.points.push([offsetX, offsetY]);
-        this.redrawCanvas();
-        this.drawFreeDraw(this.currentElement);
-        break;
+    if (!this.isErasing) {
+      // Handle drawing when not erasing
+      switch (this.drawingMode) {
+        case 'rectangle':
+          const width = offsetX - this.startX;
+          const height = offsetY - this.startY;
+          // Update the rectangle width and height
+          this.currentElement.width = width;
+          this.currentElement.height = height;
+          this.redrawCanvas();
+          this.drawRectangle(this.currentElement);
+          break;
+        case 'text':
+          // No preview text for mouse move
+          break;
+        case 'freedraw':
+          this.currentElement.points.push([offsetX, offsetY]);
+          this.redrawCanvas();
+          this.drawFreeDraw(this.currentElement);
+          break;
+      }
+    } else {
+      // Implement eraser logic
+      this.eraseElement(offsetX, offsetY);
     }
   }
+  
+  eraseElement(offsetX: number, offsetY: number) {
+    const radius = 10; // Adjust the eraser size as needed
+  
+    this.elements = this.elements.filter(element => {
+      switch (element.type) {
+        case 'rectangle':
+          return !(
+            offsetX + radius >= element.x &&
+            offsetX - radius <= element.x + element.width &&
+            offsetY + radius >= element.y &&
+            offsetY - radius <= element.y + element.height
+          );
+        case 'text':
+          return !(
+            offsetX >= element.x &&
+            offsetX <= element.x + this.ctx.measureText(element.text).width &&
+            offsetY >= element.y - 20 &&
+            offsetY <= element.y
+          );
+        case 'freedraw':
+          const points = element.points || [];
+          // Filter out all points within the radius of the eraser
+          element.points = points.filter(([x, y]) => !(
+            offsetX + radius >= x &&
+            offsetX - radius <= x &&
+            offsetY + radius >= y &&
+            offsetY - radius <= y
+          ));
+          return element.points.length > 0; // Keep the freedraw element if it still has points
+        default:
+          return true;
+      }
+    });
+  
+    this.redrawCanvas();
+  }
+  
+  
+  // Method to check if a point is inside a path
+  isPointInPath(path: number[][], point: number[]): boolean {
+    const [x, y] = point;
+    return path.some(p => {
+      const [px, py] = p;
+      const dx = x - px;
+      const dy = y - py;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      return distance < 10; // Adjust the distance threshold as needed
+    });
+  }
+  
   
   onMouseUp(event: MouseEvent) {
     if (!this.isDrawing || !this.currentElement) return;
@@ -192,21 +283,55 @@ export class AppComponent implements AfterViewInit {
   }
   
   saveDrawingAsJSON() {
-    const drawingData = {
-      imageData: this.canvas.nativeElement.toDataURL(), // Convert canvas to data URL
-      elements: this.elements
-    };
-    const jsonData = JSON.stringify(drawingData);
-    console.log(jsonData);
+    //const drawingData = {
+     // imageData: this.canvas.nativeElement.toDataURL(), // Convert canvas to data URL
+     // elements: this.elements
+  // };
+    //const jsonData = JSON.stringify(drawingData);
+    //console.log(jsonData);
     // Here you can store jsonData in your desired format
+   // -----------------------------------------------------------------
+   const canvas = this.canvas.nativeElement;
 
+   // Convert canvas to data URL
+   const imageDataURL = canvas.toDataURL();
+ 
+   // Convert data URL to Blob
+   const blob = this.dataURLtoBlob(imageDataURL);
+ 
+   // Save the Blob and elements data separately
+   const drawingData = {
+     //imageBlob: blob,
+     imageData: this.canvas.nativeElement.toDataURL(),
+     elements: this.elements
+   };
+ 
+   // Here you can store drawingData in your desired format, e.g., save to a database
+   console.log(drawingData); // Log drawingData to verify the content
+ 
+
+  }
+  dataURLtoBlob(dataURL: string): Blob {
+    const parts = dataURL.split(';base64,');
+    const contentType = parts[0].split(':')[1];
+    const raw = window.atob(parts[1]);
+    const rawLength = raw.length;
+    const uInt8Array = new Uint8Array(rawLength);
+    for (let i = 0; i < rawLength; ++i) {
+      uInt8Array[i] = raw.charCodeAt(i);
+    }
+    return new Blob([uInt8Array], { type: contentType });
   }
 
   setDrawingMode(mode: string) {
+    if (this.isErasing) {
+      this.isErasing = false; // Turn off eraser mode when switching to another mode
+    }
     this.drawingMode = mode;
     this.isDrawing = false;
   }
 
+  
   clearCanvas() {
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
     this.elements = [];
@@ -230,16 +355,43 @@ export class AppComponent implements AfterViewInit {
       }
     });
   }
+
+  loadImageFromDataURL(dataURL: string) {
+    this.img.src = dataURL;
+  }
+  
+  loadImageFromBlob(blob: Blob) {
+    const reader = new FileReader();
+    reader.onload = (event: any) => {
+      if (event.target && typeof event.target.result === 'string') {
+        this.img.src = event.target.result;
+      }
+    };
+    reader.readAsDataURL(blob);
+  }
+  
+  
+  
   loadDrawingFromJSON(jsonData: string) {
     try {
       const drawingData = JSON.parse(jsonData);
       if (drawingData && drawingData.elements) {
         this.elements = drawingData.elements;
-        this.redrawCanvas();
+        var imageData = drawingData.imageData;
+  
+        // Create a new image element
+        var img = new Image();
+  
+        img.onload = () => {
+          this.ctx.drawImage(img, 0, 0);
+          this.imgLoaded = true;
+          this.drawElements(); // Draw elements on top of the image
+        };
+  
+        img.src = imageData;
       }
     } catch (error) {
       console.error('Error loading drawing from JSON:', error);
     }
-  }
-  
+  }  
 }
