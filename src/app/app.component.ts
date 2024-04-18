@@ -11,6 +11,7 @@ interface ElementData {
   strokeWidth: number;
   points?: number[][];
   text?: string;
+  color: string;
 }
 
 
@@ -33,6 +34,7 @@ export class AppComponent implements AfterViewInit {
   private img: HTMLImageElement = new Image(); // Create image element
   private isErasing: boolean = false; // New property for eraser mode
   private previousDrawingMode: string = '';
+  private commonColor: string = '#000000'; // Default color for all elements
 
   ngAfterViewInit() {
     const canvas = this.canvas.nativeElement;
@@ -98,7 +100,8 @@ export class AppComponent implements AfterViewInit {
           width: 0,
           height: 0,
           strokeColor: this.strokeColor,
-          strokeWidth: 2
+          strokeWidth: 2,
+          color: this.commonColor
         };
         this.elements.push(this.currentElement);
         break;
@@ -111,7 +114,8 @@ export class AppComponent implements AfterViewInit {
             y: offsetY,
             strokeColor: this.strokeColor,
             strokeWidth: 2,
-            text: text
+            text: text,
+            color: this.commonColor
           };
           this.elements.push(this.currentElement);
           this.drawText(this.currentElement);
@@ -124,7 +128,8 @@ export class AppComponent implements AfterViewInit {
           y: offsetY,
           strokeColor: this.strokeColor,
           strokeWidth: 2,
-          points: [[offsetX, offsetY]] // Start a new path
+          points: [[offsetX, offsetY]] ,// Start a new path
+          color: this.commonColor
         };
         this.elements.push(this.currentElement);
         break;
@@ -238,34 +243,33 @@ export class AppComponent implements AfterViewInit {
   drawRectangle(rect: ElementData) {
     this.ctx.beginPath();
     this.ctx.rect(rect.x, rect.y, rect.width, rect.height);
-    this.ctx.strokeStyle = rect.strokeColor;
+    this.ctx.strokeStyle = rect.color; // Use the stored color for rectangle
     this.ctx.lineWidth = rect.strokeWidth;
     this.ctx.stroke();
   }
 
   drawText(textElement: ElementData) {
     this.ctx.font = '20px Arial';
-    this.ctx.fillStyle = textElement.strokeColor;
+    this.ctx.fillStyle = textElement.color; // Use the stored color for text
     this.ctx.fillText(textElement.text || '', textElement.x, textElement.y);
   }
 
   drawFreeDraw(element: ElementData) {
     this.ctx.beginPath();
-    this.ctx.strokeStyle = element.strokeColor;
+    this.ctx.strokeStyle = element.color; // Use the stored color for free draw
     this.ctx.lineWidth = element.strokeWidth;
     if (element.points) {
-        element.points.forEach((point, index) => {
-            const [x, y] = point;
-            if (index === 0) {
-                this.ctx.moveTo(x, y);
-            } else {
-                this.ctx.lineTo(x, y);
-            }
-        });
+      element.points.forEach((point, index) => {
+        const [x, y] = point;
+        if (index === 0) {
+          this.ctx.moveTo(x, y);
+        } else {
+          this.ctx.lineTo(x, y);
+        }
+      });
     }
     this.ctx.stroke();
-}
-
+  }
 
   drawPreviewRect(x: number, y: number, width: number, height: number) {
     this.redrawCanvas();
