@@ -198,8 +198,10 @@ export class AppComponent implements AfterViewInit {
       }
     });
   
+    // Redraw the canvas after erasing elements
     this.redrawCanvas();
   }
+  
   
   
   // Method to check if a point is inside a path
@@ -275,33 +277,27 @@ export class AppComponent implements AfterViewInit {
   }
 
   redrawCanvas() {
+    // Clear the canvas
     this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
     this.ctx.fillStyle = 'white';
     this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
-    this.ctx.drawImage(this.img, 0, 0); // Redraw the image
+    
+    // Redraw the image if it's loaded
+    if (this.imgLoaded) {
+      this.ctx.drawImage(this.img, 0, 0);
+    }
+    
+    // Draw elements on top of the image
     this.drawElements();
   }
   
+  
+  
+  
   saveDrawingAsJSON() {
-    //const drawingData = {
-     // imageData: this.canvas.nativeElement.toDataURL(), // Convert canvas to data URL
-     // elements: this.elements
-  // };
-    //const jsonData = JSON.stringify(drawingData);
-    //console.log(jsonData);
-    // Here you can store jsonData in your desired format
-   // -----------------------------------------------------------------
-   const canvas = this.canvas.nativeElement;
-
-   // Convert canvas to data URL
-   const imageDataURL = canvas.toDataURL();
+   
  
-   // Convert data URL to Blob
-   const blob = this.dataURLtoBlob(imageDataURL);
- 
-   // Save the Blob and elements data separately
    const drawingData = {
-     //imageBlob: blob,
      imageData: this.canvas.nativeElement.toDataURL(),
      elements: this.elements
    };
@@ -377,21 +373,19 @@ export class AppComponent implements AfterViewInit {
       const drawingData = JSON.parse(jsonData);
       if (drawingData && drawingData.elements) {
         this.elements = drawingData.elements;
-        var imageData = drawingData.imageData;
-  
-        // Create a new image element
-        var img = new Image();
-  
-        img.onload = () => {
-          this.ctx.drawImage(img, 0, 0);
+        
+        // Set the src attribute of the img element and draw it on the canvas
+        this.img.src = drawingData.imageData;
+        this.img.onload = () => {
+          this.ctx.drawImage(this.img, 0, 0);
           this.imgLoaded = true;
           this.drawElements(); // Draw elements on top of the image
         };
-  
-        img.src = imageData;
       }
     } catch (error) {
       console.error('Error loading drawing from JSON:', error);
     }
-  }  
+  }
+  
+  
 }
