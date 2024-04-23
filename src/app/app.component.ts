@@ -35,6 +35,7 @@ export class AppComponent implements AfterViewInit {
   private isErasing: boolean = false; // New property for eraser mode
   private previousDrawingMode: string = '';
   private commonColor: string = '#000000'; // Default color for all elements
+  private isTextInputActive: boolean = false;
 
   ngAfterViewInit() {
     const canvas = this.canvas.nativeElement;
@@ -45,6 +46,7 @@ export class AppComponent implements AfterViewInit {
     this.ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   toggleEraser() {
+    console.log('Eraser button clicked');
     if (!this.isErasing) {
       // Store the previous drawing mode before toggling to eraser mode
       this.previousDrawingMode = this.drawingMode;
@@ -60,80 +62,113 @@ export class AppComponent implements AfterViewInit {
     }
   }
   
-  
-  
-
-  loadImage(event: any) {
-    const fileInput = event.target as HTMLInputElement;
-    const files = fileInput.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      const reader = new FileReader();
-      reader.onload = (event: any) => {
-        if (event.target && typeof event.target.result === 'string') {
-          this.img.src = event.target.result as string;
-          this.img.onload = () => {
-            this.ctx.drawImage(this.img, 0, 0);
-            this.imgLoaded = true;
-            this.drawElements(); // Draw elements on top of the image
-          };
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-
   onMouseDown(event: MouseEvent) {
     this.isDrawing = true;
     const offsetX = event.offsetX !== undefined ? event.offsetX : event.layerX;
     const offsetY = event.offsetY !== undefined ? event.offsetY : event.layerY;
-  
-    switch (this.drawingMode) {
-      case 'rectangle':
-        this.startX = offsetX;
-        this.startY = offsetY;
-        // Initialize the rectangle element
-        this.currentElement = {
-          type: 'rectangle',
-          x: offsetX,
-          y: offsetY,
-          width: 0,
-          height: 0,
-          strokeColor: this.strokeColor,
-          strokeWidth: 2,
-          color: this.commonColor
-        };
-        this.elements.push(this.currentElement);
-        break;
-      case 'text':
-        const text = prompt('Enter text:');
-        if (text) {
+   // console.log('Mouse Down - offsetX:', offsetX, 'offsetY:', offsetY);
+    if (this.drawingMode === 'text') {
+      // Create text input directly
+      this.createTextInput(offsetX, offsetY);
+    } else {
+      switch (this.drawingMode) {
+        case 'rectangle':
+          this.startX = offsetX;
+          this.startY = offsetY;
+          // Initialize the rectangle element
           this.currentElement = {
-            type: 'text',
+            type: 'rectangle',
+            x: offsetX,
+            y: offsetY,
+            width: 0,
+            height: 0,
+            strokeColor: this.strokeColor,
+            strokeWidth: 2,
+            color: this.commonColor
+          };
+          this.elements.push(this.currentElement);
+          break;
+        case 'text':
+          const text = prompt('Enter text:');
+          if (text) {
+            this.currentElement = {
+              type: 'text',
+              x: offsetX,
+              y: offsetY,
+              strokeColor: this.strokeColor,
+              strokeWidth: 2,
+              text: text,
+              color: this.commonColor
+            };
+            this.elements.push(this.currentElement);
+            this.drawText(this.currentElement);
+            // Call eraseElement() to enable erasing after drawing text
+            this.eraseElement(offsetX, offsetY);
+          }
+          break;
+        case 'freedraw':
+          this.currentElement = {
+            type: 'freedraw',
             x: offsetX,
             y: offsetY,
             strokeColor: this.strokeColor,
             strokeWidth: 2,
-            text: text,
+            points: [[offsetX, offsetY]] ,// Start a new path
             color: this.commonColor
           };
           this.elements.push(this.currentElement);
-          this.drawText(this.currentElement);
-        }
-        break;
-      case 'freedraw':
-        this.currentElement = {
-          type: 'freedraw',
-          x: offsetX,
-          y: offsetY,
-          strokeColor: this.strokeColor,
-          strokeWidth: 2,
-          points: [[offsetX, offsetY]] ,// Start a new path
-          color: this.commonColor
-        };
-        this.elements.push(this.currentElement);
-        break;
+          break;
+      }
     }
+  }
+  
+  createTextInput(x: number, y: number) {
+    if (!this.isErasing) { // Only create text input if not erasing
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.style.position = 'absolute';
+
+        // Calculate the position of the input field relative to the cursor position
+        const inputOffsetX = 250; // Adjust as needed to position the input field to the right of the cursor
+        const inputOffsetY = 10;  // Adjust as needed to position the input field above the cursor
+
+        // Calculate the position of the input field based on cursor position and offsets
+        const inputX = x + inputOffsetX;
+        const inputY = y + inputOffsetY;
+
+        input.style.left = `${inputX}px`;
+        input.style.top = `${inputY}px`;
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                this.drawTextAtPosition(input.value, x, y);
+                input.remove();
+            }
+        });
+
+        document.body.appendChild(input);
+        input.focus();
+    }
+}
+
+  
+  
+  
+  drawTextAtPosition(text: string, x: number, y: number) {
+    if (!text) return; // If the text is empty, do nothing
+  
+    const textElement: ElementData = {
+      type: 'text',
+      x: x,
+      y: y,
+      strokeColor: this.strokeColor,
+      strokeWidth: 2,
+      text: text,
+      color: this.commonColor
+    };
+  
+    this.elements.push(textElement);
+    this.drawText(textElement);
   }
   
   onMouseMove(event: MouseEvent) {
@@ -170,24 +205,30 @@ export class AppComponent implements AfterViewInit {
   }
   
   eraseElement(offsetX: number, offsetY: number) {
+ //   console.log('Erasing at offsetX:', offsetX, 'offsetY:', offsetY);
+ // console.log('Elements before erasing:', this.elements);
+  
     const radius = 10; // Adjust the eraser size as needed
   
     this.elements = this.elements.filter(element => {
       switch (element.type) {
         case 'rectangle':
+          // Check if the cursor is within the boundaries of the rectangle
           return !(
             offsetX + radius >= element.x &&
             offsetX - radius <= element.x + element.width &&
             offsetY + radius >= element.y &&
             offsetY - radius <= element.y + element.height
           );
-        case 'text':
-          return !(
-            offsetX >= element.x &&
-            offsetX <= element.x + this.ctx.measureText(element.text).width &&
-            offsetY >= element.y - 20 &&
-            offsetY <= element.y
-          );
+          case 'text':
+            const textHeight = 20; // Assuming the font size is 20px
+            const textWidth = this.ctx.measureText(element.text || '').width;
+            return !(
+              offsetX >= element.x &&
+              offsetX <= element.x + textWidth &&
+              offsetY >= element.y - textHeight && // Adjusted for text height
+              offsetY <= element.y
+            );
         case 'freedraw':
           const points = element.points || [];
           // Filter out all points within the radius of the eraser
@@ -206,6 +247,7 @@ export class AppComponent implements AfterViewInit {
     // Redraw the canvas after erasing elements
     this.redrawCanvas();
   }
+  
   
   
   
@@ -371,7 +413,28 @@ export class AppComponent implements AfterViewInit {
   }
   
   
-  
+   
+
+  loadImage(event: any) {
+    const fileInput = event.target as HTMLInputElement;
+    const files = fileInput.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const reader = new FileReader();
+      reader.onload = (event: any) => {
+        if (event.target && typeof event.target.result === 'string') {
+          this.img.src = event.target.result as string;
+          this.img.onload = () => {
+            this.ctx.drawImage(this.img, 0, 0);
+            this.imgLoaded = true;
+            this.drawElements(); // Draw elements on top of the image
+          };
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
   loadDrawingFromJSON(jsonData: string) {
     try {
       const drawingData = JSON.parse(jsonData);
